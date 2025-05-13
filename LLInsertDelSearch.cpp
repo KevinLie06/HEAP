@@ -5,10 +5,10 @@
 // Node untuk binary tree
 typedef struct Node {
     int data;
-    struct Node *left, *right;
+    struct Node *left, *right, *parent;
 } Node;
 
-// Queue untuk bantu level-order traversal
+// Queue node (untuk level-order traversal)
 typedef struct QueueNode {
     Node *treeNode;
     struct QueueNode *next;
@@ -16,7 +16,7 @@ typedef struct QueueNode {
 
 QueueNode *front = NULL, *rear = NULL;
 
-// Queue operations
+// Queue Operations
 void enqueue(Node *treeNode) {
     QueueNode *temp = (QueueNode *)malloc(sizeof(QueueNode));
     temp->treeNode = treeNode;
@@ -46,20 +46,29 @@ bool isQueueEmpty() {
 Node* createNode(int value) {
     Node *newNode = (Node *)malloc(sizeof(Node));
     newNode->data = value;
-    newNode->left = newNode->right = NULL;
+    newNode->left = newNode->right = newNode->parent = NULL;
     return newNode;
 }
 
-// Swap isi data antar dua node
+// Swap data antara dua node
 void swap(Node *a, Node *b) {
     int temp = a->data;
     a->data = b->data;
     b->data = temp;
 }
 
-// Heapify turun (untuk delete root)
+// Heapify naik untuk insert (heapify-up)
+void heapifyUp(Node *node) {
+    while (node->parent && node->data < node->parent->data) {
+        swap(node, node->parent);
+        node = node->parent;
+    }
+}
+
+// Heapify turun untuk delete root (heapify-down)
 void heapifyDown(Node *root) {
     if (!root) return;
+
     Node *minNode = root;
 
     if (root->left && root->left->data < minNode->data)
@@ -73,7 +82,7 @@ void heapifyDown(Node *root) {
     }
 }
 
-// INSERT: masukkan node ke posisi yang tepat (level order), lalu heapify-up
+// INSERT: masukkan node baru dan jaga aturan min-heap
 void insert(Node **root, int value) {
     Node *newNode = createNode(value);
     if (!(*root)) {
@@ -88,75 +97,70 @@ void insert(Node **root, int value) {
 
         if (!temp->left) {
             temp->left = newNode;
-            if (temp->data > temp->left->data)
-                swap(temp, temp->left);
+            newNode->parent = temp;
+            heapifyUp(newNode);
             break;
         } else enqueue(temp->left);
 
         if (!temp->right) {
             temp->right = newNode;
-            if (temp->data > temp->right->data)
-                swap(temp, temp->right);
+            newNode->parent = temp;
+            heapifyUp(newNode);
             break;
         } else enqueue(temp->right);
     }
 }
 
-// DELETE: hapus root dan ganti dengan node terakhir, lalu heapify-down
+// DELETE: hapus elemen terkecil (root) dan perbaiki struktur heap
 void deleteMin(Node **root) {
     if (!(*root)) {
         printf("Heap kosong!\n");
         return;
     }
 
-    Node *temp = NULL, *last = NULL, *parent = NULL;
+    Node *temp = NULL, *last = NULL;
+
     enqueue(*root);
 
-    // Cari node terakhir dan parent-nya
     while (!isQueueEmpty()) {
         temp = dequeue();
         if (temp->left) {
             enqueue(temp->left);
-            parent = temp;
             last = temp->left;
         }
         if (temp->right) {
             enqueue(temp->right);
-            parent = temp;
             last = temp->right;
         }
     }
 
-    // Replace root data dengan data node terakhir
-    if (last && *root) {
-        (*root)->data = last->data;
-
-        // Hapus node terakhir
-        if (parent->right == last) {
-            parent->right = NULL;
-        } else if (parent->left == last) {
-            parent->left = NULL;
-        }
-
-        free(last);
-
-        // Perbaiki heap
-        heapifyDown(*root);
-    } else {
-        // Jika hanya satu node (root)
+    if (last == *root) {
         free(*root);
         *root = NULL;
+        return;
     }
+
+    // Replace root dengan data node terakhir
+    (*root)->data = last->data;
+
+    // Hapus node terakhir
+    Node *parent = last->parent;
+    if (parent->right == last) parent->right = NULL;
+    else if (parent->left == last) parent->left = NULL;
+    free(last);
+
+    // Heapify turun dari root
+    heapifyDown(*root);
 }
 
-// SEARCH: cari elemen dalam heap (DFS rekursif)
+// SEARCH: cari nilai dalam tree secara rekursif
 bool search(Node *root, int key) {
     if (!root) return false;
     if (root->data == key) return true;
     return search(root->left, key) || search(root->right, key);
 }
 
-// INORDER (traversal untuk cek isi)
+// INORDER: untuk cek isi tree
 void inorder(Node *root) {
     if (!root) return;
     inorder(root->left);
@@ -164,53 +168,43 @@ void inorder(Node *root) {
     inorder(root->right);
 }
 
+// Free semua node
+void freeTree(Node *root) {
+    if (!root) return;
+    freeTree(root->left);
+    freeTree(root->right);
+    free(root);
+}
+
 // MAIN
 int main() {
     Node *heap = NULL;
-	int a, b, c, d, e, f, g, h, i, n;
-	printf("Berapa insert node yang ingin dimasukkan?: ");
-	scanf("%d", &n);
-	for(int i = 0; i < n; i++){
-		printf("Insert node: ");
-		scanf("%d", &a);
-    	insert(&heap, a);
-	}
-//	printf("Insert node: ");
-//	scanf("%d", &a);
-//    insert(&heap, a);
-//    printf("Insert node: ");
-//	scanf("%d", &b);
-//    insert(&heap, b);
-//    printf("Insert node: ");
-//	scanf("%d", &c);
-//    insert(&heap, c);
-//    printf("Insert node: ");
-//	scanf("%d", &d);
-//    insert(&heap, d);
-//    printf("Insert node: ");
-//	scanf("%d", &e);
-//    insert(&heap, e);
-    
-//    insert(&heap, 10);
-//    insert(&heap, 5);
-//    insert(&heap, 3);
-//    insert(&heap, 12);
-//    insert(&heap, 1);
+    int n, val;
+
+    printf("Berapa banyak nilai yang ingin dimasukkan ke Min Heap? ");
+    scanf("%d", &n);
+
+    for (int i = 0; i < n; i++) {
+        printf("Masukkan nilai ke-%d: ", i + 1);
+        scanf("%d", &val);
+        insert(&heap, val);
+    }
 
     printf("Isi Heap (inorder): ");
     inorder(heap);
     printf("\n");
 
-    printf("Apakah 12 ada? %s\n", search(heap, 12) ? "Ya" : "Tidak");
-    printf("Apakah 99 ada? %s\n", search(heap, 99) ? "Ya" : "Tidak");
+    printf("Cari nilai 12? %s\n", search(heap, 12) ? "Ditemukan" : "Tidak ditemukan");
+    printf("Cari nilai 99? %s\n", search(heap, 99) ? "Ditemukan" : "Tidak ditemukan");
 
-    printf("Menghapus elemen terkecil (min)...\n");
+    printf("Menghapus elemen terkecil...\n");
     deleteMin(&heap);
 
     printf("Isi Heap setelah deleteMin: ");
     inorder(heap);
     printf("\n");
 
+    // Bersihkan memory
+    freeTree(heap);
     return 0;
 }
-
